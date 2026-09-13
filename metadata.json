@@ -1,0 +1,6 @@
+{
+  "name": "인생맑음",
+  "description": "감성 은퇴 설계 플랫폼 '인생맑음' - 복잡한 은퇴 설계를 똑똑한 동반자 AI 캐릭터와 함께 해결하는 플랫폼",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
