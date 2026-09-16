@@ -20,8 +20,17 @@ class GreetingScreenshotTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   @Test
-  fun greeting_screenshot() {
-    composeTestRule.setContent { MyApplicationTheme { androidx.compose.material3.Text("Robolectric") } }
+  fun segmented_control_screenshot() {
+    composeTestRule.setContent {
+      MyApplicationTheme {
+        SunnySegmentedControl(
+          items = listOf("📊 은퇴 로드맵", "🌤️ 경제 날씨", "🤖 AI 케어"),
+          selectedItem = "📊 은퇴 로드맵",
+          onItemSelected = {},
+          itemLabel = { it }
+        )
+      }
+    }
 
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/greeting.png")
   }

@@ -84,6 +84,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import com.example.ui.util.rememberDebouncedClick
+import com.example.ui.util.debouncedClickable
+import com.example.data.util.FinancialCalculator
 /**
  * 전체 입력창의 텍스트 색상을 선명한 검정색(Color.Black)으로 일괄 보장하는 표준 컬러 세팅
  */
@@ -372,7 +375,7 @@ fun LoginScreen(viewModel: RetirementViewModel) {
 
                 // Primary Action Button
                 Button(
-                    onClick = {
+                    onClick = rememberDebouncedClick(debounceInterval = 600L) {
                         if (isRegisterMode) {
                             viewModel.register(username, password, nickname)
                         } else {
@@ -1441,7 +1444,7 @@ fun DashboardHomeView(
                                         color = Color.White,
                                         modifier = Modifier
                                             .background(Color.White.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
-                                            .clickable { viewModel.flushPendingSync() }
+                                            .debouncedClickable { viewModel.flushPendingSync() }
                                             .padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
@@ -1721,7 +1724,7 @@ fun DashboardHomeView(
                                         color = Color.White,
                                         modifier = Modifier
                                             .background(Color.White.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
-                                            .clickable { viewModel.flushPendingSync() }
+                                            .debouncedClickable { viewModel.flushPendingSync() }
                                             .padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
@@ -2390,7 +2393,7 @@ fun DashboardAssetsView(
                     ) {
                         // 저장 버튼
                         Button(
-                            onClick = {
+                            onClick = rememberDebouncedClick(debounceInterval = 600L) {
                                 viewModel.saveCustomApiKey(apiKeyInput.trim())
                                 viewModel.clearTestResult()
                                 viewModel.loadAiAdvice() // Reload advice with the new key!
@@ -2404,7 +2407,7 @@ fun DashboardAssetsView(
 
                         // 연결 테스트 버튼
                         Button(
-                            onClick = {
+                            onClick = rememberDebouncedClick(debounceInterval = 600L) {
                                 viewModel.testCustomApiKey(apiKeyInput.trim())
                             },
                             enabled = !isTestingApi,
@@ -2672,7 +2675,7 @@ fun AddLeakDialog(
                     }
 
                     Button(
-                        onClick = {
+                        onClick = rememberDebouncedClick(debounceInterval = 600L) {
                             val amount = amountString.toLongOrNull() ?: 0L
                             if (title.isNotBlank() && amount > 0L) {
                                 onConfirm(title, amount, category)
@@ -3233,7 +3236,7 @@ fun RetirementAssetProjectionChart(user: UserEntity) {
 
     val maxVal = remember(projectedPoints, savingTarget) {
         val maxProj = projectedPoints.maxOrNull() ?: 100_000_000L
-        (maxOf(maxProj, savingTarget) * 1.15).toLong()
+        (maxOf(maxProj, savingTarget) * 1.15).toLong().coerceAtLeast(1L)
     }
 
     Card(
@@ -3720,40 +3723,15 @@ fun RetirementAssetProjectionChart(user: UserEntity) {
     }
 }
 
-fun formatKoreanMoney(amount: Long): String {
-    if (amount <= 0) return "0원"
-    val eok = amount / 100_000_000L
-    val man = (amount % 100_000_000L) / 10_000L
-    return when {
-        eok > 0 && man > 0 -> "${eok}억 ${DecimalFormat("#,###").format(man)}만원"
-        eok > 0 -> "${eok}억원"
-        else -> "${DecimalFormat("#,###").format(man)}만원"
-    }
-}
+fun formatKoreanMoney(amount: Long): String = FinancialCalculator.formatKoreanMoney(amount)
 
-fun formatKoreanEok(amount: Long): String {
-    val eok = amount / 100_000_000L
-    return if (eok > 0) "${eok}억" else "${amount / 10_000L}만"
-}
+fun formatKoreanEok(amount: Long): String = FinancialCalculator.formatKoreanEok(amount)
 
-fun calculateMonthlySavingWithInterest(totalFund: Long, years: Int, annualRate: Double): Long {
-    val months = years * 12
-    if (months <= 0) return totalFund
-    if (annualRate <= 0.0) return totalFund / months
-    
-    val r = annualRate / 12.0
-    val denominator = java.lang.Math.pow(1.0 + r, months.toDouble()) - 1.0
-    if (denominator <= 0.0) return totalFund / months
-    return (totalFund * (r / denominator)).toLong()
-}
+fun calculateMonthlySavingWithInterest(totalFund: Long, years: Int, annualRate: Double): Long =
+    FinancialCalculator.calculateMonthlySavingWithInterest(totalFund, years, annualRate)
 
-fun calculateFutureValue(monthlyDeposit: Long, months: Int, annualRate: Double): Long {
-    if (months <= 0) return 0L
-    if (annualRate <= 0.0) return monthlyDeposit * months
-    val r = annualRate / 12.0
-    val numerator = java.lang.Math.pow(1.0 + r, months.toDouble()) - 1.0
-    return (monthlyDeposit * (numerator / r)).toLong()
-}
+fun calculateFutureValue(monthlyDeposit: Long, months: Int, annualRate: Double): Long =
+    FinancialCalculator.calculateFutureValue(monthlyDeposit, months, annualRate)
 
 fun drawWrappedText(
     canvas: android.graphics.Canvas,
@@ -6282,8 +6260,8 @@ fun RetirementCalculatorCard(
 
     // Safe sanitized values for calculation fallbacks
     val cleanCurrentAge = currentAgeParsed?.coerceIn(18, 100) ?: 35
-    val cleanTargetAge = targetAgeParsed?.coerceIn(cleanCurrentAge + 1, 110) ?: 60
-    val cleanLifespan = lifespanParsed?.coerceIn(cleanTargetAge + 1, 120) ?: 90
+    val cleanTargetAge = targetAgeParsed?.coerceIn(cleanCurrentAge + 1, 110) ?: maxOf(cleanCurrentAge + 1, 60)
+    val cleanLifespan = lifespanParsed?.coerceIn(cleanTargetAge + 1, 120) ?: maxOf(cleanTargetAge + 1, 90)
     val cleanMonthlyExpenses = ((monthlyExpensesParsed ?: 300L).coerceIn(10L, 10_000L)) * 10_000L
     val cleanCurrentAssets = ((assetsParsed ?: 0L).coerceAtLeast(0L)) * 10_000L
 
