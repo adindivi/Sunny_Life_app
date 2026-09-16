@@ -108,6 +108,55 @@ fun sunnyTextFieldColors(
     unfocusedLeadingIconColor = Color.Gray
 )
 
+/**
+ * 모바일 최적화 세그먼트 컨트롤 탭 (글로벌 표준 원칙 #3 준수)
+ * 가로 100%, 12dp 라운드 배경, 3dp 패딩, weight(1f), maxLines=1, softWrap=false
+ */
+@Composable
+fun <T> SunnySegmentedControl(
+    items: List<T>,
+    selectedItem: T,
+    onItemSelected: (T) -> Unit,
+    itemLabel: (T) -> String,
+    modifier: Modifier = Modifier,
+    activeColor: Color = Color.White,
+    activeTextColor: Color = Color(0xFF1E88E5),
+    inactiveTextColor: Color = Color(0xFF64748B),
+    backgroundColor: Color = Color(0xFFE2E8F0)
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(backgroundColor)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        items.forEach { item ->
+            val isSelected = item == selectedItem
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (isSelected) activeColor else Color.Transparent)
+                    .clickable { onItemSelected(item) }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = itemLabel(item),
+                    fontSize = 12.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) activeTextColor else inactiveTextColor,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+    }
+}
+
 class MainActivity : ComponentActivity() {
     private val viewModel: RetirementViewModel by viewModels()
 
@@ -1231,6 +1280,18 @@ enum class DashboardTab {
     HOME, LEAKS, ASSETS, SETTINGS
 }
 
+enum class HomeSubTab(val title: String) {
+    ROADMAP("📊 은퇴 로드맵"),
+    WEATHER("🌤️ 경제 날씨"),
+    AI_CARE("🤖 AI 케어")
+}
+
+enum class AssetsSubTab(val title: String) {
+    DIAGNOSIS("📊 자산 진단"),
+    PORTFOLIO("🛡️ 포트폴리오"),
+    SETTINGS("⚙️ 엔진 설정")
+}
+
 @Composable
 fun DashboardHomeView(
     user: UserEntity,
@@ -1248,6 +1309,7 @@ fun DashboardHomeView(
     val assetRange = AssetRange.fromIndex(user.assetIndex)
     var customUserQuestion by remember { mutableStateOf("") }
     var showToppingCard by remember { mutableStateOf(true) }
+    var currentHomeSubTab by remember { mutableStateOf(HomeSubTab.ROADMAP) }
 
     val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
     val pendingSyncCount by viewModel.pendingSyncCount.collectAsStateWithLifecycle()
@@ -1722,104 +1784,120 @@ fun DashboardHomeView(
                     }
                 }
 
-                // Live Economic Weather Indicator Card
+                // SubTab Segmented Control (은퇴 로드맵 / 경제 날씨 / AI 케어)
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text("오늘의 경제 기상도", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        text = "대한민국 경제 날씨: 맑음 🌤️",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFF2E7D32)
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "날씨",
-                                    tint = Color(0xFF1E88E5),
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
+                    SunnySegmentedControl(
+                        items = listOf(HomeSubTab.ROADMAP, HomeSubTab.WEATHER, HomeSubTab.AI_CARE),
+                        selectedItem = currentHomeSubTab,
+                        onItemSelected = { currentHomeSubTab = it },
+                        itemLabel = { it.title }
+                    )
+                }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                when (currentHomeSubTab) {
+                    HomeSubTab.ROADMAP -> {
+                        // Saving Progress Dashboard Card (현재 자산과 목표를 비교하고 달성률을 시각화 및 목표 설정 폼)
+                        item {
+                            RetirementProgressDashboardCard(
+                                user = user,
+                                viewModel = viewModel,
+                                totalSolvedSavings = totalSolvedSavings,
+                                onEditRequest = onEditRequest
+                            )
+                        }
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                EconomicWidget(
-                                    label = "한국은행 금리",
-                                    value = "${economicIndicators?.baseInterestRate ?: 3.50}%",
-                                    color = Color(0xFF2E7D32)
-                                )
-                                EconomicWidget(
-                                    label = "인플레이션(물가)",
-                                    value = "${economicIndicators?.inflationRate ?: 2.6}%",
-                                    color = Color(0xFFC62828)
-                                )
-                                EconomicWidget(
-                                    label = "코스피 시세",
-                                    value = "${economicIndicators?.kospiIndex ?: 2685.42}",
-                                    color = Color(0xFF1565C0)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = economicIndicators?.weatherDescription ?: "은퇴 대비 자산을 안정적으로 적립해 나가기 쾌적한 상태입니다.",
-                                fontSize = 11.sp,
-                                color = Color.DarkGray,
-                                lineHeight = 16.sp
+                        // Personalized Report Summary & Export Card
+                        item {
+                            PersonalizedReportSummaryCard(
+                                user = user,
+                                viewModel = viewModel,
+                                totalSolvedSavings = totalSolvedSavings,
+                                aiAdvice = aiAdvice,
+                                logs = logs
                             )
                         }
                     }
-                }
+                    HomeSubTab.WEATHER -> {
+                        // Live Economic Weather Indicator Card
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(20.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text("오늘의 경제 기상도", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                text = "대한민국 경제 날씨: 맑음 🌤️",
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color(0xFF2E7D32)
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "날씨",
+                                            tint = Color(0xFF1E88E5),
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
 
-                // Saving Progress Dashboard Card (현재 자산과 목표를 비교하고 달성률을 시각화 및 목표 설정 폼)
-                item {
-                    RetirementProgressDashboardCard(
-                        user = user,
-                        viewModel = viewModel,
-                        totalSolvedSavings = totalSolvedSavings,
-                        onEditRequest = onEditRequest
-                    )
-                }
+                                    Spacer(modifier = Modifier.height(14.dp))
 
-                // Personalized Report Summary & Export Card
-                item {
-                    PersonalizedReportSummaryCard(
-                        user = user,
-                        viewModel = viewModel,
-                        totalSolvedSavings = totalSolvedSavings,
-                        aiAdvice = aiAdvice,
-                        logs = logs
-                    )
-                }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        EconomicWidget(
+                                            label = "한국은행 금리",
+                                            value = "${economicIndicators?.baseInterestRate ?: 3.50}%",
+                                            color = Color(0xFF2E7D32)
+                                        )
+                                        EconomicWidget(
+                                            label = "인플레이션(물가)",
+                                            value = "${economicIndicators?.inflationRate ?: 2.6}%",
+                                            color = Color(0xFFC62828)
+                                        )
+                                        EconomicWidget(
+                                            label = "코스피 시세",
+                                            value = "${economicIndicators?.kospiIndex ?: 2685.42}",
+                                            color = Color(0xFF1565C0)
+                                        )
+                                    }
 
-                // AI Retirement Strategy Chatbot Module
-                item {
-                    RetirementAiChatbotModule(
-                        user = user,
-                        viewModel = viewModel,
-                        aiAdvice = aiAdvice,
-                        isAiLoading = isAiLoading,
-                        totalSolvedSavings = totalSolvedSavings,
-                        onOpenChatRequest = onOpenChatRequest
-                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = economicIndicators?.weatherDescription ?: "은퇴 대비 자산을 안정적으로 적립해 나가기 쾌적한 상태입니다.",
+                                        fontSize = 11.sp,
+                                        color = Color.DarkGray,
+                                        lineHeight = 16.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    HomeSubTab.AI_CARE -> {
+                        // AI Retirement Strategy Chatbot Module
+                        item {
+                            RetirementAiChatbotModule(
+                                user = user,
+                                viewModel = viewModel,
+                                aiAdvice = aiAdvice,
+                                isAiLoading = isAiLoading,
+                                totalSolvedSavings = totalSolvedSavings,
+                                onOpenChatRequest = onOpenChatRequest
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -2025,6 +2103,8 @@ fun DashboardAssetsView(
     val emergencyTarget = user.securityFund
     val isa = user.isaContribution
 
+    var currentAssetsSubTab by remember { mutableStateOf(AssetsSubTab.DIAGNOSIS) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -2052,18 +2132,31 @@ fun DashboardAssetsView(
             }
         }
 
-        // Section: Retirement Asset Projection Chart (은퇴 시점까지의 자산 흐름 시각화 그래프)
+        // SubTab Segmented Control (자산 진단 / 포트폴리오 / 엔진 설정)
         item {
-            RetirementAssetProjectionChart(user = user)
+            SunnySegmentedControl(
+                items = listOf(AssetsSubTab.DIAGNOSIS, AssetsSubTab.PORTFOLIO, AssetsSubTab.SETTINGS),
+                selectedItem = currentAssetsSubTab,
+                onItemSelected = { currentAssetsSubTab = it },
+                itemLabel = { it.title }
+            )
         }
 
-        // Section: Retirement Fund Needed Calculator (은퇴 자금 필요량 계산기)
-        item {
-            RetirementCalculatorCard(user = user, viewModel = viewModel)
-        }
+        when (currentAssetsSubTab) {
+            AssetsSubTab.DIAGNOSIS -> {
+                // Section: Retirement Asset Projection Chart (은퇴 시점까지의 자산 흐름 시각화 그래프)
+                item {
+                    RetirementAssetProjectionChart(user = user)
+                }
 
-        // Section 1: Emergency Fund (든든한 비상금)
-        item {
+                // Section: Retirement Fund Needed Calculator (은퇴 자금 필요량 계산기)
+                item {
+                    RetirementCalculatorCard(user = user, viewModel = viewModel)
+                }
+            }
+            AssetsSubTab.PORTFOLIO -> {
+                // Section 1: Emergency Fund (든든한 비상금)
+                item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
@@ -2205,7 +2298,8 @@ fun DashboardAssetsView(
                 }
             }
         }
-
+    }
+    AssetsSubTab.SETTINGS -> {
         // Section 4: Google API Key Settings & Connection Test (구글 API 설정 및 연결 테스트)
         item {
             val customApiKey by viewModel.customApiKey.collectAsStateWithLifecycle()
@@ -2408,6 +2502,8 @@ fun DashboardAssetsView(
                             .padding(4.dp)
                     )
                 }
+            }
+        }
             }
         }
     }
@@ -6100,6 +6196,7 @@ fun RetirementCalculatorCard(
     var expectedLifespanText by remember { mutableStateOf("90") }
     var monthlyExpensesText by remember { mutableStateOf("300") } // 만원 단위
     var isPdfDownloading by remember { mutableStateOf(false) }
+    var isInputsExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(user.savingCurrent) {
         currentAssetsText = (user.savingCurrent / 10_000L).toString()
@@ -6176,6 +6273,12 @@ fun RetirementCalculatorCard(
     }
 
     val hasAnyError = assetsError != null || currentAgeError != null || targetAgeError != null || monthlyExpensesError != null || lifespanError != null
+
+    LaunchedEffect(hasAnyError) {
+        if (hasAnyError) {
+            isInputsExpanded = true
+        }
+    }
 
     // Safe sanitized values for calculation fallbacks
     val cleanCurrentAge = currentAgeParsed?.coerceIn(18, 100) ?: 35
@@ -6463,10 +6566,59 @@ fun RetirementCalculatorCard(
                 }
             }
             
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Inputs Column - KEYWORD-BASED + DIRECT NUMERIC INPUT + ERROR VALIDATION
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Accordion Toggle Button for Input Parameters (글로벌 UI/UX 원칙 #2 & #5 준수)
+            Surface(
+                onClick = { isInputsExpanded = !isInputsExpanded },
+                shape = RoundedCornerShape(14.dp),
+                color = if (isInputsExpanded) Color(0xFFF1F5F9) else Color(0xFFEBF5FF),
+                border = BorderStroke(1.dp, if (isInputsExpanded) Color(0xFFCBD5E1) else Color(0xFFBAE6FD)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("calculator_inputs_toggle_button")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isInputsExpanded) "⚙️ 계산 조건 입력창 (나이·생활비·자산)" else "⚙️ 계산 조건 변경하기 (나이·생활비·자산)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isInputsExpanded) Color(0xFF334155) else Color(0xFF0369A1),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = if (isInputsExpanded) "접기 ▲" else "펼치기 ▼",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isInputsExpanded) Color(0xFF64748B) else Color(0xFF0284C7),
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = isInputsExpanded,
+                enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+                exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
+            ) {
+                // Inputs Column - KEYWORD-BASED + DIRECT NUMERIC INPUT + ERROR VALIDATION
+                Column(
+                    modifier = Modifier.padding(top = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                 // 1. 현재 보유 자산 (Current Assets)
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -7037,8 +7189,9 @@ fun RetirementCalculatorCard(
                     }
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
             // Calculated Results Cards
             Column(
